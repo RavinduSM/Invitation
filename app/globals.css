@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Lato:wght@300;400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ivory:         #FAF7F0;
+  --color-ivory-dark:    #F0EBE0;
+  --color-gold:          #C0873F;
+  --color-gold-light:    #D4A05A;
+  --color-gold-dark:     #9A6A2A;
+  --color-charcoal:      #2C2C2C;
+  --color-charcoal-light:#4A4A4A;
+  --color-blush:         #F2D7C0;
+  --color-blush-dark:    #E8C4A8;
+}
+
+* { box-sizing: border-box; }
+body { font-family: 'Lato', sans-serif; background-color: #FAF7F0; color: #2C2C2C; }
+
+.font-display    { font-family: 'Playfair Display', serif; }
+.font-serif-body { font-family: 'Cormorant Garamond', serif; }
+
+@keyframes fadeInUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes nameReveal { from { opacity:0; letter-spacing:12px; }        to { opacity:1; letter-spacing:normal; } }
+@keyframes cardFloat  { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+@keyframes shimmer    { 0%{background-position:-200% center;} 100%{background-position:200% center;} }
+@keyframes borderPulse{ 0%,100%{opacity:.5;} 50%{opacity:1;} }
+@keyframes spin       { to { transform: rotate(360deg); } }
+
+.animate-fade-in-up  { animation: fadeInUp 0.7s ease forwards; }
+.animate-name-reveal { animation: nameReveal 1s ease forwards; }
+.animate-card-float  { animation: cardFloat 6s ease-in-out infinite; }
+.animate-spin-slow   { animation: spin 1s linear infinite; }
+
+.stagger-1 { animation-delay:.10s; opacity:0; }
+.stagger-2 { animation-delay:.25s; opacity:0; }
+.stagger-3 { animation-delay:.40s; opacity:0; }
+.stagger-4 { animation-delay:.55s; opacity:0; }
+.stagger-5 { animation-delay:.70s; opacity:0; }
+
+.invite-card-border::before {
+  content:'';
+  position:absolute; inset:0;
+  border:1.5px solid transparent;
+  background: linear-gradient(#FAF7F0,#FAF7F0) padding-box,
+              linear-gradient(135deg,#9A6A2A,#E8C4A8,#C0873F) border-box;
+  animation: borderPulse 3s ease-in-out infinite;
+  pointer-events:none;
+}
+.invite-card-border::after {
+  content:'';
+  position:absolute; inset:10px;
+  border:0.5px solid rgba(192,135,63,.28);
+  pointer-events:none;
+}
+
+.gold-shimmer-btn {
+  background: linear-gradient(135deg,#9A6A2A,#C0873F,#D4A05A,#C0873F,#9A6A2A);
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+  transition: all .3s ease;
+}
+.gold-shimmer-btn:hover {
+  box-shadow: 0 8px 32px rgba(192,135,63,.45);
+  transform: translateY(-2px);
+}
+
+.form-top-bar::before {
+  content:'';
+  position:absolute; top:0; left:0;
+  width:100%; height:3px;
+  background: linear-gradient(to right,#9A6A2A,#D4A05A);
+}
