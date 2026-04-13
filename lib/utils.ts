@@ -23,9 +23,6 @@ export function getInviteURL(name: string): string {
   return `${base}/invite/${encodeURIComponent(name)}`
 }
 
-export const REF_LINK =
-  'https://anuruddha-watasha.netlify.app/?guest=UmF2aW5kdQ==&th=6b9e78-a8cdb4-0e2416-f3faf5-1a3a24'
-
 export const EVENT = {
   title: 'An Evening of Celebration',
   details: [
