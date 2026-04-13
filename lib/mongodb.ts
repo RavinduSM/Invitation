@@ -6,6 +6,9 @@ if (!MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable in .env.local")
 }
 
+// ✅ Ensure TypeScript knows it's a string
+const uri: string = MONGODB_URI
+
 type MongooseCache = {
   conn: typeof mongoose | null
   promise: Promise<typeof mongoose> | null
@@ -21,24 +24,29 @@ const globalWithCache = global as typeof globalThis & {
   mongooseCache?: MongooseCache
 }
 
-const cached = globalWithCache.mongooseCache || {
+const cached: MongooseCache = globalWithCache.mongooseCache || {
   conn: null,
   promise: null,
 }
 
+// Save cache to global (important for hot reload in dev)
 globalWithCache.mongooseCache = cached
 
 export async function connectDB(): Promise<typeof mongoose> {
+  // If already connected, reuse connection
   if (cached.conn) {
     return cached.conn
   }
 
+  // If no connection promise, create one
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, {
+    cached.promise = mongoose.connect(uri, {
       bufferCommands: false,
     })
   }
 
+  // Await the connection
   cached.conn = await cached.promise
+
   return cached.conn
 }
