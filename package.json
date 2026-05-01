@@ -1,0 +1,38 @@
+{
+  "name": "invitation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RavinduSM/Invitation.git"
+  },
+  "author": "RavinduM",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RavinduSM/Invitation/issues"
+  },
+  "homepage": "https://github.com/RavinduSM/Invitation#readme",
+  "dependencies": {
+    "mongoose": "^9.4.1",
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^20.19.39",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.3",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^5.9.3"
+  }
+}
