@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToast, Toast } from '@/components/Toast'
 import { getInitials } from '@/lib/utils'
-import type { Invitation } from '@/types'
+import type { Invitation, EventContent, EventDetail } from '@/types'
 
 // ── Alert ──────────────────────────────────────────────────────────────────
 function Alert({ message, type }: { message: string; type: 'error' | 'success' }) {
@@ -81,13 +81,44 @@ function InviteRow({
 
 // ── Admin Panel ────────────────────────────────────────────────────────────
 export default function AdminPanel() {
+  // Invitations state
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading] = useState(true)
   const [nameInput, setNameInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
+  
+  // Event content state
+  const [eventContent, setEventContent] = useState<EventContent>({
+    title: '',
+    details: [],
+    date: '',
+    time: '',
+    venue: '',
+    dressCode: '',
+    rsvp: '',
+  })
+  const [contentLoading, setContentLoading] = useState(true)
+  const [contentSubmitting, setContentSubmitting] = useState(false)
+  const [contentAlert, setContentAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
+  
   const { toast, showToast } = useToast()
+
+  // ── Fetch event content ────────────────────────────────────────────────
+  const fetchEventContent = useCallback(async () => {
+    try {
+      const res = await fetch('/api/content')
+      const json = await res.json()
+      if (json.success && json.data) {
+        setEventContent(json.data)
+      }
+    } catch {
+      console.error('Failed to load event content')
+    } finally {
+      setContentLoading(false)
+    }
+  }, [])
 
   // ── Fetch all invitations ──────────────────────────────────────────────
   const fetchInvitations = useCallback(async () => {
@@ -102,12 +133,75 @@ export default function AdminPanel() {
     }
   }, [showToast])
 
-  useEffect(() => { fetchInvitations() }, [fetchInvitations])
+  useEffect(() => {
+    fetchEventContent()
+    fetchInvitations()
+  }, [fetchEventContent, fetchInvitations])
 
   // ── Show timed alert ───────────────────────────────────────────────────
   function showAlert(message: string, type: 'error' | 'success') {
     setAlert({ message, type })
     setTimeout(() => setAlert(null), 4500)
+  }
+
+  function showContentAlert(message: string, type: 'error' | 'success') {
+    setContentAlert({ message, type })
+    setTimeout(() => setContentAlert(null), 4500)
+  }
+
+  // ── Handle content update ──────────────────────────────────────────────
+  async function handleContentSave() {
+    if (!eventContent.title.trim()) {
+      showContentAlert('Event title is required', 'error')
+      return
+    }
+    if (!eventContent.rsvp.trim()) {
+      showContentAlert('RSVP information is required', 'error')
+      return
+    }
+
+    setContentSubmitting(true)
+    try {
+      const res = await fetch('/api/content', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventContent),
+      })
+      const json = await res.json()
+
+      if (!json.success) {
+        showContentAlert(json.error ?? 'Failed to save event content', 'error')
+        return
+      }
+
+      showContentAlert('Event content updated successfully!', 'success')
+      setEventContent(json.data)
+    } catch {
+      showContentAlert('Network error — please try again', 'error')
+    } finally {
+      setContentSubmitting(false)
+    }
+  }
+
+  // ── Handle detail change ───────────────────────────────────────────────
+  function handleDetailChange(index: number, field: 'label' | 'value', value: string) {
+    const updated = [...(eventContent.details || [])]
+    updated[index] = { ...updated[index], [field]: value }
+    setEventContent({ ...eventContent, details: updated })
+  }
+
+  // ── Add detail row ─────────────────────────────────────────────────────
+  function addDetailRow() {
+    setEventContent({
+      ...eventContent,
+      details: [...(eventContent.details || []), { label: '', value: '' }],
+    })
+  }
+
+  // ── Remove detail row ──────────────────────────────────────────────────
+  function removeDetailRow(index: number) {
+    const updated = (eventContent.details || []).filter((_, i) => i !== index)
+    setEventContent({ ...eventContent, details: updated })
   }
 
   // ── Generate invitation ────────────────────────────────────────────────
@@ -198,9 +292,174 @@ export default function AdminPanel() {
           </h1>
           <div className="w-16 h-px bg-gold mx-auto my-4" />
           <p className="text-[13px] text-charcoal-light tracking-wide">
-            Generate &amp; manage personalized invitations
+            Manage event content and personalized invitations
           </p>
         </div>
+
+        {/* ── Event Content Editor ── */}
+        {contentLoading ? (
+          <Spinner />
+        ) : (
+          <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
+            <h2 className="font-display font-normal text-[22px] text-charcoal mb-6">Event Details</h2>
+
+            {/* Event Title */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                Event Title
+              </label>
+              <input
+                type="text"
+                value={eventContent.title}
+                onChange={(e) => setEventContent({ ...eventContent, title: e.target.value })}
+                placeholder="e.g. An Evening of Celebration"
+                maxLength={200}
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[16px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+              />
+            </div>
+
+            {/* Event Date */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                Event Date
+              </label>
+              <input
+                type="text"
+                value={eventContent.date || ''}
+                onChange={(e) => setEventContent({ ...eventContent, date: e.target.value })}
+                placeholder="e.g. Saturday, May 24, 2025"
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[16px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+              />
+            </div>
+
+            {/* Event Time */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                Event Time
+              </label>
+              <input
+                type="text"
+                value={eventContent.time || ''}
+                onChange={(e) => setEventContent({ ...eventContent, time: e.target.value })}
+                placeholder="e.g. 7:00 PM Onwards"
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[16px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+              />
+            </div>
+
+            {/* Event Venue */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                Event Venue
+              </label>
+              <input
+                type="text"
+                value={eventContent.venue || ''}
+                onChange={(e) => setEventContent({ ...eventContent, venue: e.target.value })}
+                placeholder="e.g. The Grand Hall, Colombo"
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[16px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+              />
+            </div>
+
+            {/* Dress Code */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                Dress Code
+              </label>
+              <input
+                type="text"
+                value={eventContent.dressCode || ''}
+                onChange={(e) => setEventContent({ ...eventContent, dressCode: e.target.value })}
+                placeholder="e.g. Black Tie Preferred"
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[16px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+              />
+            </div>
+
+            {/* Event Details */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark">
+                  Event Details
+                </label>
+                <button
+                  onClick={addDetailRow}
+                  disabled={contentSubmitting}
+                  className="text-[9px] tracking-[2px] uppercase bg-gold text-ivory px-3 py-1.5 rounded-full hover:bg-gold-dark transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  + Add Detail
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {(eventContent.details || []).map((detail, index) => (
+                  <div key={index} className="flex gap-3 max-sm:flex-col">
+                    <input
+                      type="text"
+                      value={detail.label}
+                      onChange={(e) => handleDetailChange(index, 'label', e.target.value)}
+                      placeholder="e.g. Date"
+                      disabled={contentSubmitting}
+                      className="w-32 font-serif-body text-[14px] text-charcoal bg-ivory border border-gold/40 px-3 py-2.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+                    />
+                    <textarea
+                      value={detail.value}
+                      onChange={(e) => handleDetailChange(index, 'value', e.target.value)}
+                      placeholder="e.g. Saturday, May 24\n2025"
+                      disabled={contentSubmitting}
+                      className="flex-1 font-serif-body text-[14px] text-charcoal bg-ivory border border-gold/40 px-3 py-2.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50 resize-none"
+                      rows={2}
+                    />
+                    <button
+                      onClick={() => removeDetailRow(index)}
+                      disabled={contentSubmitting || (eventContent.details || []).length <= 1}
+                      className="text-[9px] tracking-[2px] uppercase bg-red-600 text-ivory px-3 py-2.5 rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer self-start"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* RSVP */}
+            <div className="mb-6">
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+                RSVP Information
+              </label>
+              <textarea
+                value={eventContent.rsvp}
+                onChange={(e) => setEventContent({ ...eventContent, rsvp: e.target.value })}
+                placeholder="e.g. Kindly RSVP by May 10, 2025"
+                maxLength={300}
+                disabled={contentSubmitting}
+                className="w-full font-serif-body text-[14px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50 resize-none"
+                rows={2}
+              />
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={handleContentSave}
+              disabled={contentSubmitting}
+              className="w-full text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+            >
+              {contentSubmitting ? (
+                <>
+                  <div className="w-3 h-3 rounded-full border border-ivory/30 border-t-ivory animate-spin-slow" />
+                  Saving…
+                </>
+              ) : (
+                'Save Event Details'
+              )}
+            </button>
+
+            {contentAlert && <Alert message={contentAlert.message} type={contentAlert.type} />}
+          </div>
+        )}
 
         {/* ── Generator form ── */}
         <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
