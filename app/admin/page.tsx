@@ -102,6 +102,7 @@ export default function AdminPanel() {
   const [contentLoading, setContentLoading] = useState(true)
   const [contentSubmitting, setContentSubmitting] = useState(false)
   const [contentAlert, setContentAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
+  const [showModal, setShowModal] = useState(false)
   
   const { toast, showToast } = useToast()
 
@@ -176,6 +177,7 @@ export default function AdminPanel() {
 
       showContentAlert('Event content updated successfully!', 'success')
       setEventContent(json.data)
+      setShowModal(false)
     } catch {
       showContentAlert('Network error — please try again', 'error')
     } finally {
@@ -209,6 +211,11 @@ export default function AdminPanel() {
     const raw = nameInput.trim()
     if (!raw) {
       showAlert('Please enter a recipient\'s name before generating.', 'error')
+      return
+    }
+
+    if (!eventContent.title.trim() || !eventContent.rsvp.trim()) {
+      showAlert('Please save event details before generating invitations.', 'error')
       return
     }
 
@@ -285,23 +292,113 @@ export default function AdminPanel() {
 
       <main className="max-w-3xl mx-auto px-6 py-12 max-sm:px-4">
         {/* ── Page header ── */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-12 relative">
           <p className="text-[10px] tracking-[4px] uppercase text-gold mb-3">Management Console</p>
           <h1 className="font-display font-normal text-[36px] text-charcoal leading-tight">
             Invitation Manager
           </h1>
+          <button
+            onClick={() => setShowModal(true)}
+            disabled={contentLoading}
+            className="absolute right-4 top-[60px] text-[8px] tracking-[1px] uppercase bg-transparent border border-gold text-gold px-3 py-1 rounded-md hover:bg-gold hover:text-ivory transition-all duration-200 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {contentLoading ? 'Loading...' : 'Edit Event Details'}
+          </button>
           <div className="w-16 h-px bg-gold mx-auto my-4" />
           <p className="text-[13px] text-charcoal-light tracking-wide">
             Manage event content and personalized invitations
           </p>
         </div>
 
-        {/* ── Event Content Editor ── */}
-        {contentLoading ? (
+        {/* ── Generator form ── */}
+        <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
+          <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+            Recipient Name
+          </label>
+          <div className="flex gap-3 max-sm:flex-col">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !submitting && handleGenerate()}
+              placeholder="e.g. Sarah, John Smith, José…"
+              maxLength={80}
+              disabled={submitting}
+              className="flex-1 font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={submitting || !eventContent.title.trim() || !eventContent.rsvp.trim()}
+              className="text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <div className="w-3 h-3 rounded-full border border-ivory/30 border-t-ivory animate-spin-slow" />
+                  Generating…
+                </>
+              ) : (
+                'Generate'
+              )}
+            </button>
+          </div>
+
+          {alert && <Alert message={alert.message} type={alert.type} />}
+
+          {generatedLink && (
+            <div className="animate-fade-in-up mt-5 flex items-center gap-3 bg-ivory-dark border border-gold/30 px-4 py-3.5">
+              <span className="flex-1 text-[12px] text-charcoal-light break-all">{generatedLink}</span>
+              <button
+                onClick={() => handleCopy(generatedLink)}
+                className="text-[9px] tracking-[2px] uppercase bg-gold text-ivory px-4 py-2 rounded-full hover:bg-gold-dark transition-colors shrink-0 cursor-pointer"
+              >
+                Copy
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Invitations list ── */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display font-normal text-[22px] text-charcoal">All Invitations</h2>
+          <span className="text-[11px] bg-gold text-ivory px-3 py-1 rounded-full">
+            {invitations.length}
+          </span>
+        </div>
+
+        {loading ? (
           <Spinner />
+        ) : invitations.length === 0 ? (
+          <div className="text-center py-14 border border-dashed border-gold/30 bg-ivory-dark">
+            <p className="text-3xl mb-3 opacity-40">✉</p>
+            <p className="font-serif-body italic text-[16px] text-charcoal-light">
+              No invitations yet. Generate your first one above.
+            </p>
+          </div>
         ) : (
-          <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
-            <h2 className="font-display font-normal text-[22px] text-charcoal mb-6">Event Details</h2>
+          <div className="flex flex-col gap-2.5">
+            {invitations.map((inv) => (
+              <InviteRow
+                key={inv._id}
+                invite={inv}
+                onDelete={handleDelete}
+                onCopy={handleCopy}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* ── Event Details Modal ── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative bg-white border border-gold/30 px-10 py-9 mx-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto max-sm:px-5 max-sm:py-6">
+            <button
+              onClick={() => setShowModal(false)}
+              className="absolute top-4 right-4 text-charcoal hover:text-gold text-xl"
+            >
+              ×
+            </button>
+            <h2 className="font-display font-normal text-[22px] text-charcoal mb-6">Edit Event Details</h2>
 
             {/* Event Title */}
             <div className="mb-6">
@@ -381,18 +478,9 @@ export default function AdminPanel() {
 
             {/* Event Details */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark">
-                  Event Details
-                </label>
-                <button
-                  onClick={addDetailRow}
-                  disabled={contentSubmitting}
-                  className="text-[9px] tracking-[2px] uppercase bg-gold text-ivory px-3 py-1.5 rounded-full hover:bg-gold-dark transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  + Add Detail
-                </button>
-              </div>
+              <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-4">
+                Event Details
+              </label>
 
               <div className="space-y-3">
                 {(eventContent.details || []).map((detail, index) => (
@@ -459,85 +547,8 @@ export default function AdminPanel() {
 
             {contentAlert && <Alert message={contentAlert.message} type={contentAlert.type} />}
           </div>
-        )}
-
-        {/* ── Generator form ── */}
-        <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
-          <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
-            Recipient Name
-          </label>
-          <div className="flex gap-3 max-sm:flex-col">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !submitting && handleGenerate()}
-              placeholder="e.g. Sarah, John Smith, José…"
-              maxLength={80}
-              disabled={submitting}
-              className="flex-1 font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
-            />
-            <button
-              onClick={handleGenerate}
-              disabled={submitting}
-              className="text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <div className="w-3 h-3 rounded-full border border-ivory/30 border-t-ivory animate-spin-slow" />
-                  Generating…
-                </>
-              ) : (
-                'Generate'
-              )}
-            </button>
-          </div>
-
-          {alert && <Alert message={alert.message} type={alert.type} />}
-
-          {generatedLink && (
-            <div className="animate-fade-in-up mt-5 flex items-center gap-3 bg-ivory-dark border border-gold/30 px-4 py-3.5">
-              <span className="flex-1 text-[12px] text-charcoal-light break-all">{generatedLink}</span>
-              <button
-                onClick={() => handleCopy(generatedLink)}
-                className="text-[9px] tracking-[2px] uppercase bg-gold text-ivory px-4 py-2 rounded-full hover:bg-gold-dark transition-colors shrink-0 cursor-pointer"
-              >
-                Copy
-              </button>
-            </div>
-          )}
         </div>
-
-        {/* ── Invitations list ── */}
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-display font-normal text-[22px] text-charcoal">All Invitations</h2>
-          <span className="text-[11px] bg-gold text-ivory px-3 py-1 rounded-full">
-            {invitations.length}
-          </span>
-        </div>
-
-        {loading ? (
-          <Spinner />
-        ) : invitations.length === 0 ? (
-          <div className="text-center py-14 border border-dashed border-gold/30 bg-ivory-dark">
-            <p className="text-3xl mb-3 opacity-40">✉</p>
-            <p className="font-serif-body italic text-[16px] text-charcoal-light">
-              No invitations yet. Generate your first one above.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {invitations.map((inv) => (
-              <InviteRow
-                key={inv._id}
-                invite={inv}
-                onDelete={handleDelete}
-                onCopy={handleCopy}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+      )}
 
       <Toast message={toast} />
     </div>

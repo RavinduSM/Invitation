@@ -7,20 +7,7 @@ import type { IEventContent } from '@/models/content'
 export async function GET() {
   try {
     await connectDB()
-    let content = await Content.findOne().lean()
-
-    // If no content exists, return default content
-    if (!content) {
-      content = {
-        title: 'An Evening of Celebration',
-        details: [],
-        date: 'Saturday, May 24, 2025',
-        time: '7:00 PM Onwards',
-        venue: 'The Grand Hall, Colombo',
-        dressCode: 'Black Tie Preferred',
-        rsvp: 'Kindly RSVP by May 10, 2025',
-      } as any
-    }
+    const content = await Content.findOne().lean()
 
     return NextResponse.json({ success: true, data: content })
   } catch (error) {
