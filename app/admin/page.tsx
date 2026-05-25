@@ -5,6 +5,14 @@ import { useToast, Toast } from '@/components/Toast'
 import { getInitials } from '@/lib/utils'
 import type { Invitation, EventContent, EventDetail } from '@/types'
 
+interface User {
+  _id: string
+  userName: string
+  userEmail: string
+  userRole: 'admin' | 'editor' | 'viewer'
+  createdAt: string
+}
+
 // ── Alert ──────────────────────────────────────────────────────────────────
 function Alert({ message, type }: { message: string; type: 'error' | 'success' }) {
   const base = 'mt-4 px-4 py-3 font-serif-body italic text-[13px] border-l-4 animate-fade-in-up'
@@ -79,16 +87,85 @@ function InviteRow({
   )
 }
 
+// ── User Row ───────────────────────────────────────────────────────────────
+function UserRow({
+  user,
+  onDelete,
+}: {
+  user: User
+  onDelete: (id: string, name: string) => void
+}) {
+  const getRoleBgColor = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-red-100 text-red-800'
+      case 'editor':
+        return 'bg-blue-100 text-blue-800'
+      case 'viewer':
+        return 'bg-gray-100 text-gray-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  return (
+    <div className="animate-fade-in-up flex items-center gap-4 bg-white border border-gold/20 px-5 py-4 transition-colors hover:border-gold/50 max-sm:flex-wrap">
+      {/* Avatar */}
+      <div
+        className="w-10 h-10 flex items-center justify-center font-serif-body text-[14px] text-ivory shrink-0"
+        style={{ background: 'linear-gradient(135deg, #9A6A2A, #C0873F)' }}
+      >
+        {getInitials(user.userName)}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="font-serif-body text-[17px] font-medium text-charcoal mb-0.5">{user.userName}</p>
+        <p className="text-[11px] text-gold-dark truncate">{user.userEmail}</p>
+      </div>
+
+      {/* Role Badge */}
+      <div className={`text-[10px] tracking-wide uppercase px-3 py-1 rounded-full font-medium ${getRoleBgColor(user.userRole)} shrink-0`}>
+        {user.userRole}
+      </div>
+
+      {/* Delete Button */}
+      <button
+        onClick={() => onDelete(user._id, user.userName)}
+        className="text-[10px] tracking-wide uppercase px-3 py-1.5 rounded-full border border-charcoal/20 text-charcoal-light hover:border-red-600 hover:text-red-600 transition-all cursor-pointer shrink-0"
+      >
+        Remove
+      </button>
+    </div>
+  )
+}
+
 // ── Admin Panel ────────────────────────────────────────────────────────────
 export default function AdminPanel() {
+  const [showUserModal, setShowUserModal] = useState(false)
+
   // Invitations state
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading] = useState(true)
   const [nameInput, setNameInput] = useState('')
+  const [emailInput, setEmailInput] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [alert, setAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
-  
+
+  // Users state
+  const [users, setUsers] = useState<User[]>([])
+  const [usersLoading, setUsersLoading] = useState(true)
+  const [showUserForm, setShowUserForm] = useState(false)
+  const [userFormData, setUserFormData] = useState({
+    userName: '',
+    userEmail: '',
+    userPwd: '',
+    userRole: 'viewer' as 'admin' | 'editor' | 'viewer',
+  })
+  const [userSubmitting, setUserSubmitting] = useState(false)
+  const [userAlert, setUserAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
+
   // Event content state
   const [eventContent, setEventContent] = useState<EventContent>({
     title: '',
@@ -103,7 +180,7 @@ export default function AdminPanel() {
   const [contentSubmitting, setContentSubmitting] = useState(false)
   const [contentAlert, setContentAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [showModal, setShowModal] = useState(false)
-  
+
   const { toast, showToast } = useToast()
 
   // ── Fetch event content ────────────────────────────────────────────────
@@ -134,10 +211,27 @@ export default function AdminPanel() {
     }
   }, [showToast])
 
+  // ── Fetch all users ────────────────────────────────────────────────────
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true)
+    try {
+      const res = await fetch('/api/users')
+      const json = await res.json()
+      if (json.success) {
+        setUsers(json.data)
+      }
+    } catch {
+      showToast('Failed to load users')
+    } finally {
+      setUsersLoading(false)
+    }
+  }, [showToast])
+
   useEffect(() => {
     fetchEventContent()
     fetchInvitations()
-  }, [fetchEventContent, fetchInvitations])
+    fetchUsers()
+  }, [fetchEventContent, fetchInvitations, fetchUsers])
 
   // ── Show timed alert ───────────────────────────────────────────────────
   function showAlert(message: string, type: 'error' | 'success') {
@@ -148,6 +242,11 @@ export default function AdminPanel() {
   function showContentAlert(message: string, type: 'error' | 'success') {
     setContentAlert({ message, type })
     setTimeout(() => setContentAlert(null), 4500)
+  }
+
+  function showUserAlert(message: string, type: 'error' | 'success') {
+    setUserAlert({ message, type })
+    setTimeout(() => setUserAlert(null), 4500)
   }
 
   // ── Handle content update ──────────────────────────────────────────────
@@ -206,11 +305,85 @@ export default function AdminPanel() {
     setEventContent({ ...eventContent, details: updated })
   }
 
+  // ── Create user ────────────────────────────────────────────────────────
+  async function handleCreateUser() {
+    if (!userFormData.userName.trim()) {
+      showUserAlert('Username is required', 'error')
+      return
+    }
+    if (!userFormData.userEmail.trim()) {
+      showUserAlert('Email is required', 'error')
+      return
+    }
+    if (!userFormData.userPwd.trim()) {
+      showUserAlert('Password is required', 'error')
+      return
+    }
+    if (userFormData.userPwd.length < 6) {
+      showUserAlert('Password must be at least 6 characters', 'error')
+      return
+    }
+
+    setUserSubmitting(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userFormData),
+      })
+      const json = await res.json()
+
+      if (!json.success) {
+        showUserAlert(json.error ?? 'Failed to create user', 'error')
+        return
+      }
+
+      showUserAlert(`User ${userFormData.userName} created successfully!`, 'success')
+      setUsers([json.data, ...users])
+      setUserFormData({
+        userName: '',
+        userEmail: '',
+        userPwd: '',
+        userRole: 'viewer',
+      })
+      setShowUserForm(false)
+    } catch {
+      showUserAlert('Network error — please try again', 'error')
+    } finally {
+      setUserSubmitting(false)
+    }
+  }
+
+  // ── Delete user ────────────────────────────────────────────────────────
+  async function handleDeleteUser(id: string, name: string) {
+    if (!confirm(`Are you sure you want to remove ${name}?`)) return
+
+    try {
+      const res = await fetch(`/api/users?id=${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.success) {
+        setUsers((prev) => prev.filter((u) => u._id !== id))
+        showToast(`User ${name} has been removed`)
+      } else {
+        showToast('Failed to remove user')
+      }
+    } catch {
+      showToast('Network error — please try again')
+    }
+  }
+
   // ── Generate invitation ────────────────────────────────────────────────
   async function handleGenerate() {
     const raw = nameInput.trim()
+    const recipientEmail = emailInput.trim()
+
     if (!raw) {
       showAlert('Please enter a recipient\'s name before generating.', 'error')
+      return
+    }
+
+    if (!recipientEmail) {
+      showAlert('Please enter a recipient email before generating.', 'error')
       return
     }
 
@@ -226,7 +399,7 @@ export default function AdminPanel() {
       const res = await fetch('/api/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: raw }),
+        body: JSON.stringify({ name: raw, email: recipientEmail }),
       })
       const json = await res.json()
 
@@ -239,6 +412,7 @@ export default function AdminPanel() {
       setInvitations((prev) => [inv, ...prev])
       setGeneratedLink(inv.url)
       setNameInput('')
+      setEmailInput('')
       showAlert(`Invitation for <strong>${inv.name}</strong> created successfully!`, 'success')
     } catch {
       showAlert('Network error — please try again.', 'error')
@@ -278,16 +452,14 @@ export default function AdminPanel() {
       >
         <div className="flex items-center gap-3">
           <span className="font-serif-body text-gold text-lg tracking-widest opacity-70">✦</span>
-          <span className="font-display text-ivory text-[15px] tracking-wider">Invitations</span>
+          <span className="font-display text-ivory text-[15px] tracking-wider">Management</span>
         </div>
-        <nav className="flex gap-1">
-          <a
-            href="/admin"
-            className="text-[10px] tracking-[2px] uppercase px-4 py-2 text-gold border-b-2 border-gold"
-          >
-            Admin
-          </a>
-        </nav>
+        <button
+          onClick={() => setShowUserModal(true)}
+          className="text-[10px] tracking-[2px] uppercase bg-transparent border border-gold text-gold px-4 py-2 rounded-md hover:bg-gold hover:text-ivory transition-all"
+        >
+          Manage Users
+        </button>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-12 max-sm:px-4">
@@ -315,20 +487,35 @@ export default function AdminPanel() {
           <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
             Recipient Name
           </label>
-          <div className="flex gap-3 max-sm:flex-col">
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !submitting && handleGenerate()}
-              placeholder="e.g. Sarah, John Smith, José…"
-              maxLength={80}
-              disabled={submitting}
-              className="flex-1 font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
-            />
+          <input
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !submitting && handleGenerate()}
+            placeholder="e.g. Sarah, John Smith, José…"
+            maxLength={80}
+            disabled={submitting}
+            className="w-full font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+          />
+
+          <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mt-5 mb-2.5">
+            Recipient Email
+          </label>
+          <input
+            type="email"
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            placeholder="guest@example.com"
+            disabled={submitting}
+            className="w-full font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+          />
+
+          <div className="flex gap-3 mt-5 max-sm:flex-col">
             <button
               onClick={handleGenerate}
-              disabled={submitting || !eventContent.title.trim() || !eventContent.rsvp.trim()}
+              disabled={
+                submitting || !eventContent.title.trim() || !eventContent.rsvp.trim() || !emailInput.trim()
+              }
               className="text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {submitting ? (
@@ -387,6 +574,149 @@ export default function AdminPanel() {
           </div>
         )}
       </main>
+
+      {/* ── User Management Modal ── */}
+      {showUserModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative bg-white border border-gold/30 px-10 py-9 mx-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto max-sm:px-5 max-sm:py-6">
+            <button
+              onClick={() => setShowUserModal(false)}
+              className="absolute top-4 right-4 text-charcoal hover:text-gold text-xl"
+            >
+              ×
+            </button>
+            <h2 className="font-display font-normal text-[22px] text-charcoal mb-4">Manage Users</h2>
+            <p className="text-[13px] text-charcoal-light mb-8">
+              Create and manage application users in one place.
+            </p>
+
+            {!showUserForm ? (
+              <button
+                onClick={() => setShowUserForm(true)}
+                className="w-full text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors cursor-pointer mb-8"
+              >
+                + Add New User
+              </button>
+            ) : (
+              <div className="relative bg-ivory/80 border border-gold/30 px-8 py-8 mb-8 rounded-lg">
+                <button
+                  onClick={() => setShowUserForm(false)}
+                  className="absolute top-4 right-4 text-charcoal hover:text-gold text-xl"
+                >
+                  ×
+                </button>
+                <h3 className="font-display font-normal text-[20px] text-charcoal mb-5">Create New User</h3>
+
+                <div className="mb-4">
+                  <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={userFormData.userName}
+                    onChange={(e) => setUserFormData({ ...userFormData, userName: e.target.value })}
+                    placeholder="e.g. John Doe"
+                    disabled={userSubmitting}
+                    className="w-full font-serif-body text-[16px] text-charcoal bg-white border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={userFormData.userEmail}
+                    onChange={(e) => setUserFormData({ ...userFormData, userEmail: e.target.value })}
+                    placeholder="e.g. john@example.com"
+                    disabled={userSubmitting}
+                    className="w-full font-serif-body text-[16px] text-charcoal bg-white border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={userFormData.userPwd}
+                    onChange={(e) => setUserFormData({ ...userFormData, userPwd: e.target.value })}
+                    placeholder="Min 6 characters"
+                    disabled={userSubmitting}
+                    className="w-full font-serif-body text-[16px] text-charcoal bg-white border border-gold/40 px-4 py-3.5 placeholder:text-charcoal/30 placeholder:italic focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2">
+                    Role
+                  </label>
+                  <select
+                    value={userFormData.userRole}
+                    onChange={(e) =>
+                      setUserFormData({
+                        ...userFormData,
+                        userRole: e.target.value as 'admin' | 'editor' | 'viewer',
+                      })
+                    }
+                    disabled={userSubmitting}
+                    className="w-full font-serif-body text-[16px] text-charcoal bg-white border border-gold/40 px-4 py-3.5 focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="editor">Editor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCreateUser}
+                    disabled={userSubmitting}
+                    className="flex-1 text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {userSubmitting ? (
+                      <>
+                        <div className="w-3 h-3 rounded-full border border-ivory/30 border-t-ivory animate-spin-slow" />
+                        Creating…
+                      </>
+                    ) : (
+                      'Create User'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowUserForm(false)}
+                    disabled={userSubmitting}
+                    className="flex-1 text-[10px] tracking-[2px] uppercase bg-gray-400 text-white px-7 py-3.5 hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {userAlert && <Alert message={userAlert.message} type={userAlert.type} />}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-display font-normal text-[18px] text-charcoal">Active Users</h3>
+              <span className="text-[11px] bg-gold text-ivory px-3 py-1 rounded-full">{users.length}</span>
+            </div>
+
+            {usersLoading ? (
+              <Spinner />
+            ) : users.length === 0 ? (
+              <div className="text-center py-14 border border-dashed border-gold/30 bg-ivory-dark">
+                <p className="text-3xl mb-3 opacity-40">👤</p>
+                <p className="font-serif-body italic text-[16px] text-charcoal-light">
+                  No users yet. Create your first user to get started.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {users.map((user) => (
+                  <UserRow key={user._id} user={user} onDelete={handleDeleteUser} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Event Details Modal ── */}
       {showModal && (
@@ -511,6 +841,14 @@ export default function AdminPanel() {
                   </div>
                 ))}
               </div>
+
+              <button
+                onClick={addDetailRow}
+                disabled={contentSubmitting}
+                className="mt-3 text-[9px] tracking-[2px] uppercase border border-gold text-gold px-3 py-2 rounded hover:bg-gold hover:text-ivory transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                + Add Detail
+              </button>
             </div>
 
             {/* RSVP */}

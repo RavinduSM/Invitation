@@ -4,6 +4,11 @@ export interface IInvitation extends Document {
   name: string
   normalizedName: string
   url: string
+  recipientEmail?: string
+  recipientName?: string
+  emailSent?: boolean
+  emailSentAt?: Date | null
+  emailError?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -27,14 +32,32 @@ const InvitationSchema = new Schema<IInvitation>(
       type: String,
       required: true,
     },
+    recipientEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    recipientName: {
+      type: String,
+      trim: true,
+    },
+    emailSent: {
+      type: Boolean,
+      default: false,
+    },
+    emailSentAt: {
+      type: Date,
+      default: null,
+    },
+    emailError: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 )
-
-// Ensure unique index on normalizedName
-InvitationSchema.index({ normalizedName: 1 }, { unique: true })
 
 const Invitation: Model<IInvitation> =
   mongoose.models.Invitation || mongoose.model<IInvitation>('Invitation', InvitationSchema)
