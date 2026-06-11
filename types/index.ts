@@ -3,6 +3,11 @@ export interface Invitation {
   name: string
   normalizedName: string
   url: string
+  recipientEmail?: string
+  recipientName?: string
+  emailSent?: boolean
+  emailSentAt?: string
+  emailError?: string
   createdAt: string
   updatedAt: string
 }

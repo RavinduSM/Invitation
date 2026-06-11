@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Invitation from '@/models/Invitation'
-import { normalizeName, formatName, getInviteURL } from '@/lib/utils'
+import { normalizeName, formatName } from '@/lib/utils'
+import { invitationService } from '@/services/invitationService'
 
 // GET /api/invitations — list all invitations
 export async function GET() {
@@ -15,16 +16,21 @@ export async function GET() {
   }
 }
 
-// POST /api/invitations — create a new invitation
+// POST /api/invitations — create a new invitation and send email
 export async function POST(req: NextRequest) {
   try {
     await connectDB()
 
     const body = await req.json()
     const rawName: string = body?.name ?? ''
+    const recipientEmail: string = String(body?.email ?? '').trim()
 
     if (!rawName.trim()) {
-      return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Recipient name is required' }, { status: 400 })
+    }
+
+    if (!recipientEmail) {
+      return NextResponse.json({ success: false, error: 'Recipient email is required' }, { status: 400 })
     }
 
     const normalized = normalizeName(rawName)
@@ -39,19 +45,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const url = getInviteURL(formatted)
-
-    const invitation = await Invitation.create({
-      name: formatted,
-      normalizedName: normalized,
-      url,
+    const invitation = await invitationService.createInvitation({
+      name: rawName,
+      recipientEmail,
     })
 
     return NextResponse.json({ success: true, data: invitation }, { status: 201 })
   } catch (error: unknown) {
     console.error('POST /api/invitations error:', error)
 
-    // MongoDB duplicate key error
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: number }).code === 11000) {
       return NextResponse.json(
         { success: false, error: 'An invitation for this person already exists.' },
