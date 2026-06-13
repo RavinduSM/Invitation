@@ -27,7 +27,7 @@ class EmailClient {
 
   constructor() {
     this.baseUrl =
-      process.env.EMAIL_SERVICE_URL || process.env.NEXT_PUBLIC_EMAIL_SERVICE_URL || 'http://localhost:3001'
+      process.env.EMAIL_SERVICE_URL || 'http://localhost:3001'
     this.apiKey = process.env.EMAIL_SERVICE_API_KEY || ''
     this.from = process.env.EMAIL_FROM || 'no-reply@invitation.app'
   }
