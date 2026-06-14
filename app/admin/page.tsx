@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useToast, Toast } from '@/components/Toast'
 import { getInitials } from '@/lib/utils'
 import type { Invitation, EventContent, EventDetail } from '@/types'
@@ -180,7 +181,10 @@ export default function AdminPanel() {
   const [contentSubmitting, setContentSubmitting] = useState(false)
   const [contentAlert, setContentAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  const router = useRouter()
   const { toast, showToast } = useToast()
 
   // ── Fetch event content ────────────────────────────────────────────────
@@ -228,10 +232,32 @@ export default function AdminPanel() {
   }, [showToast])
 
   useEffect(() => {
-    fetchEventContent()
-    fetchInvitations()
-    fetchUsers()
-  }, [fetchEventContent, fetchInvitations, fetchUsers])
+    async function validateSession() {
+      try {
+        const res = await fetch('/api/auth/me')
+        const json = await res.json()
+
+        if (!json.success || json.data.userRole !== 'admin') {
+          router.replace('/login')
+          return
+        }
+
+        setAuthLoading(false)
+      } catch {
+        router.replace('/login')
+      }
+    }
+
+    validateSession()
+  }, [router])
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchEventContent()
+      fetchInvitations()
+      fetchUsers()
+    }
+  }, [authLoading, fetchEventContent, fetchInvitations, fetchUsers])
 
   // ── Show timed alert ───────────────────────────────────────────────────
   function showAlert(message: string, type: 'error' | 'success') {
@@ -437,12 +463,35 @@ export default function AdminPanel() {
     }
   }
 
+  async function handleLogout() {
+    setIsLoggingOut(true)
+
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      router.replace('/login')
+    } catch {
+      setIsLoggingOut(false)
+      showToast('Failed to log out')
+    }
+  }
+
   // ── Copy link ──────────────────────────────────────────────────────────
   function handleCopy(url: string) {
     navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard'))
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-ivory flex items-center justify-center">
+        <div className="text-center px-4 py-8 rounded-xl bg-white border border-gold/30 shadow-lg">
+          <p className="text-[16px] font-medium text-charcoal mb-3">Checking authentication…</p>
+          <div className="w-8 h-8 rounded-full border-2 border-gold/30 border-t-gold animate-spin" />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-ivory">
       {/* ── Top bar ── */}
@@ -454,12 +503,21 @@ export default function AdminPanel() {
           <span className="font-serif-body text-gold text-lg tracking-widest opacity-70">✦</span>
           <span className="font-display text-ivory text-[15px] tracking-wider">Management</span>
         </div>
-        <button
-          onClick={() => setShowUserModal(true)}
-          className="text-[10px] tracking-[2px] uppercase bg-transparent border border-gold text-gold px-4 py-2 rounded-md hover:bg-gold hover:text-ivory transition-all"
-        >
-          Manage Users
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowUserModal(true)}
+            className="text-[10px] tracking-[2px] uppercase bg-transparent border border-gold text-gold px-4 py-2 rounded-md hover:bg-gold hover:text-ivory transition-all"
+          >
+            Manage Users
+          </button>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="text-[10px] tracking-[2px] uppercase bg-transparent border border-red-500 text-red-500 px-4 py-2 rounded-md hover:bg-red-500 hover:text-ivory transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoggingOut ? 'Signing out…' : 'Logout'}
+          </button>
+        </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-12 max-sm:px-4">

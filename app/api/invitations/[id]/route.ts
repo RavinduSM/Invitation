@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Invitation from '@/models/Invitation'
+import { requireAuth } from '@/lib/auth'
 
 // DELETE /api/invitations/[id] — revoke a single invitation
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  requireAuth(req, 'admin')
   try {
     await connectDB()
     const { id } = await params
