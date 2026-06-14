@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Content from '@/models/content'
 import type { IEventContent } from '@/models/content'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/content — fetch event content
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
     const content = await Content.findOne().lean()
 
     return NextResponse.json({ success: true, data: content })
@@ -23,6 +25,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
 
     const body = await req.json()
     const { title, details, date, time, venue, dressCode, rsvp } = body
