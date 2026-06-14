@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import User from '@/models/user'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/users — fetch all users
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
     const users = await User.find().select('-userPwd').lean()
 
     return NextResponse.json({ success: true, data: users })
@@ -22,6 +24,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
 
     const body = await req.json()
     const {userName, userEmail, userPwd, userRole} = body
@@ -66,6 +69,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
 
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')

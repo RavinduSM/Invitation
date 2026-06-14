@@ -3,11 +3,13 @@ import { connectDB } from '@/lib/mongodb'
 import Invitation from '@/models/Invitation'
 import { normalizeName, formatName } from '@/lib/utils'
 import { invitationService } from '@/services/invitationService'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/invitations — list all invitations
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
     const invitations = await Invitation.find({}).sort({ createdAt: -1 }).lean()
     return NextResponse.json({ success: true, data: invitations })
   } catch (error) {
@@ -20,6 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await connectDB()
+    requireAuth(req, 'admin')
 
     const body = await req.json()
     const rawName: string = body?.name ?? ''
