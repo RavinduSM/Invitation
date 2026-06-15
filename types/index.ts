@@ -5,6 +5,7 @@ export interface Invitation {
   url: string
   recipientEmail?: string
   recipientName?: string
+  contentId?: string
   emailSent?: boolean
   emailSentAt?: string
   emailError?: string
@@ -26,6 +27,7 @@ export interface EventContent {
   venue?: string
   dressCode?: string
   rsvp: string
+  createdBy?: string
   createdAt?: string
   updatedAt?: string
 }
