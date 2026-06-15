@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Model } from 'mongoose'
+import mongoose, { Schema, Document, Model, Types } from 'mongoose'
 
 export interface IEventContent extends Document {
   title: string
@@ -11,6 +11,7 @@ export interface IEventContent extends Document {
   venue?: string
   dressCode?: string
   rsvp: string
+  createdBy?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -61,6 +62,11 @@ const ContentSchema = new Schema<IEventContent>(
     dressCode: {
       type: String,
       trim: true,
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
     },
   },
   {
