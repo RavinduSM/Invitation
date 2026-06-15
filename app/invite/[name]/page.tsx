@@ -20,19 +20,26 @@ export default async function InvitePage({ params }: PageProps) {
   if (!invitation) notFound()
 
   // Fetch event content from database
-  let eventContent = await Content.findOne().lean()
+  let eventContent = null
+  if (invitation.contentId) {
+    eventContent = await Content.findById(invitation.contentId).lean()
+  }
 
-  // Fallback to default content if none exists
+
+  if (!eventContent) {
+    eventContent = await Content.findOne().sort({ createdAt: -1 }).lean()
+  }
+
   if (!eventContent) {
     eventContent = {
-      title: 'An Evening of Celebration',
+      title: process.env.NEXT_PUBLIC_EVENT_TITLE || 'Our Special Event',  
       details: [],
-      date: 'Saturday, May 24, 2025',
-      time: '7:00 PM Onwards',
-      venue: 'The Grand Hall, Colombo',
-      dressCode: 'Black Tie Preferred',
-      rsvp: 'Kindly RSVP by May 10, 2025',
-    } as any
+      date: '',
+      time: '',
+      venue: '',
+      dressCode: '',
+      rsvp: ''
+    }
   }
 
   return (
@@ -88,7 +95,10 @@ export default async function InvitePage({ params }: PageProps) {
             ...(eventContent!.time ? [{ label: 'Time', value: eventContent!.time }] : []),
             ...(eventContent!.venue ? [{ label: 'Venue', value: eventContent!.venue }] : []),
             ...(eventContent!.dressCode ? [{ label: 'Dress Code', value: eventContent!.dressCode }] : []),
-            ...(eventContent!.details || []).map(({ label, value }) => ({ label, value })),
+            ...(eventContent!.details || []).map((detail: { label: string; value: string }) => ({
+            label: detail.label,
+            value: detail.value,
+          })),
           ].map(({ label, value }) => (
             <div key={label} className="text-center">
               <span className="block text-[9px] tracking-[3px] uppercase text-gold mb-1.5">

@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const rawName: string = body?.name ?? ''
     const recipientEmail: string = String(body?.email ?? '').trim()
+    const contentId: string | undefined = body?.contentId
 
     if (!rawName.trim()) {
       return NextResponse.json({ success: false, error: 'Recipient name is required' }, { status: 400 })
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
     const invitation = await invitationService.createInvitation({
       name: rawName,
       recipientEmail,
+      contentId,
     })
 
     return NextResponse.json({ success: true, data: invitation }, { status: 201 })

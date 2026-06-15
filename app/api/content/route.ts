@@ -1,36 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import Content from '@/models/content'
-import type { IEventContent } from '@/models/content'
 import { requireAuth } from '@/lib/auth'
 
-// GET /api/content — fetch event content
+// GET /api/content — list all content templates
 export async function GET(req: NextRequest) {
   try {
     await connectDB()
     requireAuth(req, 'admin')
-    const content = await Content.findOne().lean()
+    const contents = await Content.find({}).sort({ createdAt: -1 }).lean()
 
-    return NextResponse.json({ success: true, data: content })
+    return NextResponse.json({ success: true, data: contents })
   } catch (error) {
     console.error('GET /api/content error:', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch event content' },
+      { success: false, error: 'Failed to fetch content templates' },
       { status: 500 }
     )
   }
 }
 
-// PUT /api/content — update event content
-export async function PUT(req: NextRequest) {
+// POST /api/content — create a new content template
+export async function POST(req: NextRequest) {
   try {
     await connectDB()
-    requireAuth(req, 'admin')
+    const payload = requireAuth(req, 'admin')
 
     const body = await req.json()
     const { title, details, date, time, venue, dressCode, rsvp } = body
 
-    // Validate input
     if (!title || !rsvp) {
       return NextResponse.json(
         { success: false, error: 'Title and RSVP are required' },
@@ -38,19 +36,24 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    // Filter out empty details
-    const filteredDetails = Array.isArray(details) ? details.filter(detail => detail.label.trim() && detail.value.trim()) : []
+    const filteredDetails = Array.isArray(details)
+      ? details.filter((detail: { label: string; value: string }) => detail.label.trim() && detail.value.trim())
+      : []
 
-    // Find and update or create new content
-    let content = await Content.findOneAndUpdate(
-      {},
-      { title, details: filteredDetails, date, time, venue, dressCode, rsvp },
-      { new: true, upsert: true, runValidators: true }
-    )
+    const content = await Content.create({
+      title,
+      details: filteredDetails,
+      date,
+      time,
+      venue,
+      dressCode,
+      rsvp,
+      createdBy: payload.userId,
+    })
 
-    return NextResponse.json({ success: true, data: content }, { status: 200 })
+    return NextResponse.json({ success: true, data: content }, { status: 201 })
   } catch (error: unknown) {
-    console.error('PUT /api/content error:', error)
+    console.error('POST /api/content error:', error)
 
     if (typeof error === 'object' && error !== null && 'name' in error) {
       const err = error as { name: string; message: string }
@@ -63,7 +66,7 @@ export async function PUT(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Failed to update event content' },
+      { success: false, error: 'Failed to create content template' },
       { status: 500 }
     )
   }

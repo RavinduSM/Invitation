@@ -167,7 +167,9 @@ export default function AdminPanel() {
   const [userSubmitting, setUserSubmitting] = useState(false)
   const [userAlert, setUserAlert] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
 
-  // Event content state
+  // Event content templates state
+  const [contents, setContents] = useState<EventContent[]>([])
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(null)
   const [eventContent, setEventContent] = useState<EventContent>({
     title: '',
     details: [],
@@ -187,16 +189,17 @@ export default function AdminPanel() {
   const router = useRouter()
   const { toast, showToast } = useToast()
 
-  // ── Fetch event content ────────────────────────────────────────────────
-  const fetchEventContent = useCallback(async () => {
+  // ── Fetch content templates ────────────────────────────────────────────────
+  const fetchContents = useCallback(async () => {
     try {
       const res = await fetch('/api/content')
       const json = await res.json()
-      if (json.success && json.data) {
-        setEventContent(json.data)
+      if (json.success && Array.isArray(json.data)) {
+        setContents(json.data)
+        setSelectedContentId((current) => current ?? (json.data.length > 0 ? json.data[0]._id : null))
       }
     } catch {
-      console.error('Failed to load event content')
+      console.error('Failed to load content templates')
     } finally {
       setContentLoading(false)
     }
@@ -253,11 +256,11 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (!authLoading) {
-      fetchEventContent()
+      fetchContents()
       fetchInvitations()
       fetchUsers()
     }
-  }, [authLoading, fetchEventContent, fetchInvitations, fetchUsers])
+  }, [authLoading, fetchContents, fetchInvitations, fetchUsers])
 
   // ── Show timed alert ───────────────────────────────────────────────────
   function showAlert(message: string, type: 'error' | 'success') {
@@ -289,19 +292,29 @@ export default function AdminPanel() {
     setContentSubmitting(true)
     try {
       const res = await fetch('/api/content', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventContent),
       })
       const json = await res.json()
 
       if (!json.success) {
-        showContentAlert(json.error ?? 'Failed to save event content', 'error')
+        showContentAlert(json.error ?? 'Failed to create content template', 'error')
         return
       }
 
-      showContentAlert('Event content updated successfully!', 'success')
-      setEventContent(json.data)
+      showContentAlert('Content template created successfully!', 'success')
+      setContents((prev) => [json.data, ...prev])
+      setSelectedContentId(json.data._id)
+      setEventContent({
+        title: '',
+        details: [],
+        date: '',
+        time: '',
+        venue: '',
+        dressCode: '',
+        rsvp: '',
+      })
       setShowModal(false)
     } catch {
       showContentAlert('Network error — please try again', 'error')
@@ -413,8 +426,8 @@ export default function AdminPanel() {
       return
     }
 
-    if (!eventContent.title.trim() || !eventContent.rsvp.trim()) {
-      showAlert('Please save event details before generating invitations.', 'error')
+    if (!selectedContentId) {
+      showAlert('Please select a content template before generating invitations.', 'error')
       return
     }
 
@@ -425,7 +438,7 @@ export default function AdminPanel() {
       const res = await fetch('/api/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: raw, email: recipientEmail }),
+        body: JSON.stringify({ name: raw, email: recipientEmail, contentId: selectedContentId }),
       })
       const json = await res.json()
 
@@ -532,7 +545,7 @@ export default function AdminPanel() {
             disabled={contentLoading}
             className="absolute right-4 top-[60px] text-[8px] tracking-[1px] uppercase bg-transparent border border-gold text-gold px-3 py-1 rounded-md hover:bg-gold hover:text-ivory transition-all duration-200 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {contentLoading ? 'Loading...' : 'Edit Event Details'}
+            {contentLoading ? 'Loading...' : 'Create Template'}
           </button>
           <div className="w-16 h-px bg-gold mx-auto my-4" />
           <p className="text-[13px] text-charcoal-light tracking-wide">
@@ -542,6 +555,28 @@ export default function AdminPanel() {
 
         {/* ── Generator form ── */}
         <div className="relative bg-white border border-gold/30 px-10 py-9 mb-10 form-top-bar max-sm:px-5 max-sm:py-6">
+          <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
+            Content Template
+          </label>
+          {contentLoading ? (
+            <p className="text-sm text-charcoal-light mb-4">Loading templates…</p>
+          ) : contents.length === 0 ? (
+            <p className="text-sm text-red-700 mb-4">No templates yet. Create one first.</p>
+          ) : (
+            <select
+              value={selectedContentId ?? ''}
+              onChange={(e) => setSelectedContentId(e.target.value)}
+              disabled={submitting || contentLoading}
+              className="w-full mb-5 font-serif-body text-[18px] text-charcoal bg-ivory border border-gold/40 px-4 py-3.5 focus:outline-none focus:border-gold transition-colors disabled:opacity-50"
+            >
+              {contents.map((content) => (
+                <option key={content._id} value={content._id}>
+                  {content.title}
+                </option>
+              ))}
+            </select>
+          )}
+
           <label className="block text-[10px] tracking-[3px] uppercase text-gold-dark mb-2.5">
             Recipient Name
           </label>
@@ -572,7 +607,7 @@ export default function AdminPanel() {
             <button
               onClick={handleGenerate}
               disabled={
-                submitting || !eventContent.title.trim() || !eventContent.rsvp.trim() || !emailInput.trim()
+                submitting || contentLoading || !selectedContentId || !nameInput.trim() || !emailInput.trim()
               }
               className="text-[10px] tracking-[2px] uppercase bg-charcoal text-ivory px-7 py-3.5 hover:bg-gold-dark transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >

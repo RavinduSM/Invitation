@@ -6,6 +6,7 @@ export interface IInvitation extends Document {
   url: string
   recipientEmail?: string
   recipientName?: string
+  contentId?: mongoose.Types.ObjectId
   emailSent?: boolean
   emailSentAt?: Date | null
   emailError?: string
@@ -52,6 +53,11 @@ const InvitationSchema = new Schema<IInvitation>(
     emailError: {
       type: String,
       default: null,
+    },
+    contentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Content',
+      required: false,
     },
   },
   {
